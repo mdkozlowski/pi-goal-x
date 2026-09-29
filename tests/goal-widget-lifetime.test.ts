@@ -6,6 +6,7 @@ import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createGoalCore } from "../extensions/goal-state.ts";
 import { syncTerminalInputPause } from "../extensions/goal-widget.ts";
+import { mutateSettingsLayer } from "../extensions/goal-settings.ts";
 import { createGoal, goalFocusDetails } from "../extensions/goal-record.ts";
 import { writeActiveGoalFile } from "../extensions/storage/goal-files.ts";
 
@@ -83,6 +84,10 @@ test("registered dashboard widget receives scroll keys and releases its referenc
 	assert.equal(core.isDashboardExpanded(), true);
 	assert.equal(onInput?.("\x1b[B")?.consume, true);
 	assert.match(component.render(100).join("\n"), /↑ 1 more task/);
+	mutateSettingsLayer({ scope: "project", cwd, mutation: { op: "set", path: ["keybindings", "dashboard", "toggleExpand"], value: "ctrl+alt+t" } });
+	assert.equal(onInput?.("\x1b[116;6u")?.consume, undefined, "the previous binding must stop toggling after a settings edit");
+	assert.equal(onInput?.("\x1b[116;7u")?.consume, true, "the new binding must work without restarting the session");
+	assert.equal(core.isDashboardExpanded(), false);
 
 	core.clearGoalWidget(ctx);
 	assert.equal(core.goalWidgetComponentRef.current, null);

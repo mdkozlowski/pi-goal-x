@@ -4,20 +4,19 @@ All notable changes to pi-goal-x are documented here.
 
 ## [Unreleased]
 
-### Changed
-
-- Stop reporting the autonomous-run allowance when there is no allowance. The `Autonomous runs: used/limit` line is left out when `maxAutonomousRuns` is unlimited, because an unlimited allowance has no limit to report. A finite allowance is reported as before and can be hidden with the new `showAutonomousRuns` setting, which defaults to on. Enforcement is unchanged.
-- Remove next actions. A ready disposition no longer carries a `nextAction`, the model declares `{ kind: "ready" }` without a `next_action` argument, and the `Next action:` line is gone from the dashboard, `/goal-status`, `get_goal`, and the agent prompt. `decision.purpose` is unchanged, so dispatch, repair, kickoff, and recovery behave as before. Goals saved before this change still load, with the field stripped during normalization.
+## [0.32.0] — 2026-10-01
 
 ### Changed
 
-- **pi 1.0.0 support.** The supported host range widens to `>=0.83.0 <2.0.0`, so pi 1.0.0 is supported without revoking the 0.83-0.87 range; development and verification move to 1.0.0. The 1.0 API is additive for this extension: every declaration removed since 0.84.1 was unused, and `ExtensionAPI.on()` returning an unsubscribe function needs no change because no handler is ever detached.
-- Goal drafting can no longer invent a token budget. A drafted goal carries no budget unless you explicitly asked for one; the drafting tool now says so in its prompt guidelines. New goals have always started budgetless — this stops the model from proposing one unprompted.
+- **pi 1.0.0 support.** The supported host range widens to `>=0.83.0 <2.0.0`, so pi 1.0.0 is supported alongside the 0.83-0.87 range that 0.31.7 added, rather than replacing it. Development and verification move to 1.0.0. No existing extension code needed changing: comparing the 0.84.1 and 1.0.0 type declarations across the three SDK packages, every declaration file that was removed is unused here, and `ExtensionAPI.on()` returning an unsubscribe function is not used, because every handler is registered once at activation.
+- Stop reporting the autonomous-run allowance when there is none. The `Autonomous runs: used/limit` line is left out when `maxAutonomousRuns` is unlimited, because an unlimited allowance has no limit to report. A finite allowance is reported as before and can be hidden with the new `showAutonomousRuns` setting, which defaults to on. Enforcement is unchanged.
+- Remove next actions. A ready disposition no longer carries a `nextAction`, the model declares `{ kind: "ready" }` without a `next_action` argument, and the `Next action:` line is gone from the dashboard, `/goal-status`, `get_goal`, and the agent prompt. `decision.purpose` is unchanged, so dispatch, repair, kickoff, and recovery behave as before. Goals saved before this change still load, with the field stripped during normalization. A repair or recovery dispatch no longer carries per-run text; a missing declaration still costs one repair and then pauses.
+- Stop the drafting tool from inventing token budgets. A drafted goal carries no budget unless the user asked for one. Goals have always started budgetless, and the drafting tool had a schema description but no prompt guideline, so the model could set one that was never requested.
 
 ### Added
 
-- Handle the new pi 1.0.0 `session_compact_failed` event. A failed context compaction previously passed silently, leaving a long-running goal uncompacted and able to re-hit the same context overflow. The goal transaction is now flushed and persisted, and the failure is reported with its trigger and provider error.
-- `scripts/live-session-check.mjs` drives a real `pi --mode rpc` session through draft, confirm, execute, audit, and archival, closing a coverage gap: `createAgentSession` and `createExtensionRuntime` are stubbed or injected in every test, so the auditor's session construction was only ever typechecked, never executed.
+- Handle the `session_compact_failed` event, which is new in pi 1.0.0. `session_before_compact` already charges the goal and `session_compact` re-arms the compaction reminder, so a failed compaction passed without notice and left the goal uncompacted. The handler is registered through a local type alias because the event does not exist before 1.0.0; on hosts that never emit it, it is never called.
+- `scripts/live-session-check.mjs` drives a pi `--mode rpc` session through draft, confirm, execute, audit, and archival. `createAgentSession` and `createExtensionRuntime` are stubbed or injected in every test, so the auditor's session construction was typechecked but never run.
 
 ## [0.31.9] — 2026-09-24
 

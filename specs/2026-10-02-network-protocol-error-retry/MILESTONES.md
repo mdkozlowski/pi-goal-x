@@ -6,7 +6,7 @@ PR #84 by `rogeecn` (Rogee), one commit imported unchanged via a maintainer merg
 
 - `5438851` fix: retry HTTP/2 protocol errors
 
-The maintainer commit adds only the CHANGELOG entry and this spec directory. The maintainer token has `push=false` on the contributor's fork, so the PR head cannot be updated in place; the branch is otherwise ready to merge.
+The maintainer commit adds only the CHANGELOG entry and this spec directory. Commits cannot be added to the pull request from outside the contributor's fork, so the contributor's commit is included here unchanged instead; the branch is otherwise ready to merge.
 
 ## Defect evidence on `main` (verified 2026-10-02)
 

@@ -1,6 +1,6 @@
 # Network recovery for HTTP/2 PROTOCOL_ERROR
 
-Source: PR [#84](https://github.com/tmonk/pi-goal-x/pull/84) by `rogeecn` (Rogee), landed on maintainer branch `incoming/pr-84` because the maintainer token has read-only access to the contributor's fork.
+Source: PR [#84](https://github.com/tmonk/pi-goal-x/pull/84) by `rogeecn` (Rogee), included on maintainer branch `incoming/pr-84`. The work is on a maintainer branch rather than in the pull request because commits cannot be added to a pull request from outside the contributor's fork.
 
 ## Problem
 

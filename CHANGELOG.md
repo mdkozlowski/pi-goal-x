@@ -10,6 +10,7 @@ All notable changes to pi-goal-x are documented here.
 - One physical key press acts once. With the Kitty keyboard protocol active, holding or releasing a Goal shortcut (dashboard toggle, auditor toggle, Escape while the dashboard is expanded, navigation keys) no longer toggles or scrolls repeatedly.
 - A dashboard keybinding change made through the settings applies without restarting the session; the bindings are read when a key arrives.
 - The expanded dashboard anchors its viewport before the first scroll, keeps compact scroll chords away from the hidden task list, and owns the plain arrow keys even when the task list fits.
+- HTTP/2 `PROTOCOL_ERROR` provider failures are classified as transient, so an active goal run uses the existing network backoff instead of stopping on a stream error such as `stream error: stream ID 1; PROTOCOL_ERROR; received from peer`. Quota and billing errors are still checked first and are never retried.
 
 ## [0.32.1] — 2026-10-01
 

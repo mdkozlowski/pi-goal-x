@@ -4,6 +4,12 @@ All notable changes to pi-goal-x are documented here.
 
 ## [Unreleased]
 
+## [0.32.1] — 2026-10-01
+
+### Documentation
+
+- Remove the pi compatibility line from the README. It restated the supported host range that the `peerDependencies` in `package.json` already declare, and commit 4c65316 had already removed it once. The widening to pi 1.0.0 in 0.32.0 is unaffected; the supported range lives in `package.json`.
+
 ## [0.32.0] — 2026-10-01
 
 ### Changed

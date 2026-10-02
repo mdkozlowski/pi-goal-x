@@ -4,6 +4,12 @@ All notable changes to pi-goal-x are documented here.
 
 ## [Unreleased]
 
+## [0.32.3] — 2026-10-02
+
+### Fixed
+
+- Generic `Provider finish_reason: error` failures are now classified as transient provider failures, so an active auto-continue goal recovers via the existing goal-level backoff ladder instead of being stranded. Quota and billing errors are still checked first and are never retried.
+
 ## [0.32.2] — 2026-10-02
 
 ### Fixed

@@ -4,6 +4,10 @@ All notable changes to pi-goal-x are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- HTTP/2 `PROTOCOL_ERROR` provider failures are classified as transient, so an active goal run uses the existing network backoff instead of stopping on a stream error such as `stream error: stream ID 1; PROTOCOL_ERROR; received from peer`. Quota and billing errors are still checked first and are never retried.
+
 ## [0.32.1] — 2026-10-01
 
 ### Documentation

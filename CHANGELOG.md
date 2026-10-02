@@ -4,6 +4,13 @@ All notable changes to pi-goal-x are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Dashboard keyboard navigation works again. The live widget component reference was never assigned, so the expanded-dashboard arrow keys and the compact Ctrl+Shift scroll chords did nothing, and a widget refresh after a state change was silently skipped. The reference is now passed to the widget factory at both registration sites and cleared when the widget is torn down.
+- One physical key press acts once. With the Kitty keyboard protocol active, holding or releasing a Goal shortcut (dashboard toggle, auditor toggle, Escape while the dashboard is expanded, navigation keys) no longer toggles or scrolls repeatedly.
+- A dashboard keybinding change made through the settings applies without restarting the session; the bindings are read when a key arrives.
+- The expanded dashboard anchors its viewport before the first scroll, keeps compact scroll chords away from the hidden task list, and owns the plain arrow keys even when the task list fits.
+
 ## [0.32.1] — 2026-10-01
 
 ### Documentation

@@ -4,6 +4,8 @@ All notable changes to pi-goal-x are documented here.
 
 ## [Unreleased]
 
+## [0.32.2] — 2026-10-02
+
 ### Fixed
 
 - Dashboard keyboard navigation works again. The live widget component reference was never assigned, so the expanded-dashboard arrow keys and the compact Ctrl+Shift scroll chords did nothing, and a widget refresh after a state change was silently skipped. The reference is now passed to the widget factory at both registration sites and cleared when the widget is torn down.

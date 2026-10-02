@@ -1,6 +1,6 @@
 # Dashboard keyboard navigation and single-press handling
 
-Source: PR [#85](https://github.com/tmonk/pi-goal-x/pull/85) by `x12315` (montana), landed on maintainer branch `incoming/pr-85` because the maintainer token has read-only access to the contributor's fork.
+Source: PR [#85](https://github.com/tmonk/pi-goal-x/pull/85) by `x12315` (montana), included on maintainer branch `incoming/pr-85`. The work is on a maintainer branch rather than in the pull request because commits cannot be added to a pull request from outside the contributor's fork.
 
 ## Problem
 

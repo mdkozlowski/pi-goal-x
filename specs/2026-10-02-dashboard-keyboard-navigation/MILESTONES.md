@@ -7,7 +7,7 @@ PR #85 by `x12315` (montana), two commits imported unchanged via a maintainer me
 - `7b2a0a1` fix(widget): connect dashboard scroll keys to live component
 - `cc7ffff` fix(widget): handle dashboard key event lifecycle
 
-The maintainer commit adds only the CHANGELOG entry and this spec directory. The maintainer token has `push=false` on the contributor's fork, so the PR head cannot be updated in place; the branch is otherwise ready to merge.
+The maintainer commit adds only the CHANGELOG entry and this spec directory. Commits cannot be added to the pull request from outside the contributor's fork, so the contributor's commits are included here unchanged instead; the branch is otherwise ready to merge.
 
 ## Defect evidence on `main` (verified 2026-10-02)
 

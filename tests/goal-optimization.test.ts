@@ -41,6 +41,11 @@ test("get_goal exposes full task evidence through bounded sections and keeps leg
  const f = await fixture(); try {
   const get = (input: unknown) => f.h.tools.get("get_goal").execute("get", input, undefined, undefined, f.h.ctx);
   const child = await get({section: "tasks", task_id: "child"}); assert.match(child.content[0].text, /Prove the child/);
+  for (const task_id of ["", " \t ", "-"]) {
+   const objective = await get({section: "objective", task_id});
+   assert.ok(objective.details.page, `empty or dash-placeholder task_id ${JSON.stringify(task_id)} is treated as omitted`);
+   assert.ok(objective.details.page.content.startsWith(f.goal.objective), "objective page is returned");
+  }
   assert.match((await get({section: "tasks", task_id: "missing"})).content[0].text, /not found/);
   assert.match((await get({verbose: true})).content[0].text, /Lifecycle:/);
   assert.match((await get({include_history: true})).content[0].text, /Goal/);
@@ -59,7 +64,7 @@ test("ordered batch completes child then parent and starts the next task in one 
  } finally {f.cleanup();}
 });
 
-test("invalid batches reject all changes, including mixed forms and missing evidence", async () => {
+test("invalid batches reject all changes and missing evidence", async () => {
  const f=await fixture(); try {
   const disk=()=>readFileSync(path.join(f.cwd,f.goal.activePath),"utf8"); const before=disk();
   for(const updates of [
@@ -67,7 +72,6 @@ test("invalid batches reject all changes, including mixed forms and missing evid
    [{task_id:"next",status:"start"},{task_id:"child",status:"complete"}],
    [{task_id:"next",status:"start"},{task_id:"missing",status:"complete"}],
   ]) { await f.update({updates}); assert.equal(disk(),before); }
-  assert.match((await f.update({task_id:"next",status:"start",updates:[{task_id:"next",status:"start"}]})).content[0].text,/never both/);
   assert.equal(readGoalLedger(f.h.ctx).events.filter(e=>e.type.startsWith("task_")).length,0);
  } finally {f.cleanup();}
 });

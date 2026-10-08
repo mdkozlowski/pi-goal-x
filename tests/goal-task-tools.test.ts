@@ -141,7 +141,7 @@ function fixtureWithTasks(tasks: Array<Record<string, unknown>>) {
 	goal.taskList = { tasks: tasks as any, blockCompletion: false, proposedAt: new Date().toISOString() };
 	const written = writeActiveGoalFile({ cwd }, goal);
 	const sessionEntries = [{ type: "custom", customType: "pi-goal-focus", data: goalFocusDetails(goal.id, "created") }];
-	const cleanup = () => { try { rmSync(cwd, { recursive: true, force: true }); } catch {} };
+	const cleanup = () => rmSync(cwd, { recursive: true, force: true });
 	return { cwd, goal: written, sessionEntries, cleanup };
 }
 
@@ -157,6 +157,92 @@ function ledgerEvents(cwd: string): Array<Record<string, unknown>> {
 		return [];
 	}
 }
+
+test("update_goal_task schema permits redundant single-task fields with a batch", () => {
+	const f = fixtureWithTasks([]);
+	try {
+		const tool = createHarness(f.cwd, f.sessionEntries).tools.get("update_goal_task")!;
+		const schema = tool.parameters as {
+			type?: string;
+			properties?: Record<string, { maxItems?: number; minItems?: number }>;
+			required?: string[];
+			additionalProperties?: boolean;
+			anyOf?: unknown[];
+		};
+		assert.equal(schema.type, "object");
+		assert.equal(schema.anyOf, undefined, "the schema does not encode mutually exclusive forms");
+		assert.deepEqual(Object.keys(schema.properties ?? {}).sort(), ["evidence", "reason", "status", "task_id", "updates"]);
+		assert.deepEqual(schema.required ?? [], [], "single-task and batch fields are optional at the top level");
+		assert.equal(schema.properties?.updates?.maxItems, 100);
+		assert.equal(schema.properties?.updates?.minItems, undefined, "an empty batch can fall back to single-task fields");
+		assert.equal(schema.additionalProperties, false);
+	} finally {
+		f.cleanup();
+	}
+});
+
+test("update_goal_task prioritizes a batch when redundant single-task fields are present", async () => {
+	const f = fixtureWithTasks([{ id: "t1", title: "Task one", status: "pending" }]);
+	try {
+		const h = createHarness(f.cwd, f.sessionEntries);
+		await h.handlers.get("session_start")?.({ reason: "start" }, h.ctx);
+		await h.handlers.get("before_agent_start")?.({ systemPrompt: "base", prompt: "go", systemPromptOptions: {} }, h.ctx);
+		const tool = h.tools.get("update_goal_task")!;
+		const result = await (tool.execute as any)("upd-redundant", {
+			task_id: "t1",
+			status: "start",
+			evidence: "",
+			reason: "",
+			updates: [{ task_id: "t1", status: "start", evidence: "", reason: "" }],
+		}, undefined, undefined, h.ctx);
+		const text = result.content?.[0]?.text ?? "";
+		assert.match(text, /t1 start\./, `batch should be applied, got: ${text}`);
+		assert.doesNotMatch(text, /Use either updates or single-task fields/);
+		const goal = activeGoal(f.cwd);
+		assert.equal(goal?.currentTaskId, "t1", "the batch start sets task focus");
+		assert.equal(goal?.taskList?.tasks[0]?.status, "pending", "start preserves the pending status");
+		assert.ok(ledgerEvents(f.cwd).some((e) => e.type === "task_started" && e.taskId === "t1"));
+	} finally {
+		f.cleanup();
+	}
+});
+
+test("update_goal_task falls back to single-task input for an empty batch", async () => {
+	const f = fixtureWithTasks([{ id: "t1", title: "Task one", status: "pending" }]);
+	try {
+		const h = createHarness(f.cwd, f.sessionEntries);
+		await h.handlers.get("session_start")?.({ reason: "start" }, h.ctx);
+		await h.handlers.get("before_agent_start")?.({ systemPrompt: "base", prompt: "go", systemPromptOptions: {} }, h.ctx);
+		const tool = h.tools.get("update_goal_task")!;
+		const missing = await (tool.execute as any)("upd-empty", { updates: [] }, undefined, undefined, h.ctx);
+		assert.match(missing.content?.[0]?.text ?? "", /updates must contain 1–100 valid task updates/);
+		const result = await (tool.execute as any)("upd-fallback", { updates: [], task_id: "t1", status: "start" }, undefined, undefined, h.ctx);
+		assert.match(result.content?.[0]?.text ?? "", /Started t1/);
+		assert.equal(activeGoal(f.cwd)?.currentTaskId, "t1");
+	} finally {
+		f.cleanup();
+	}
+});
+
+test("update_goal_task rejects a malformed batch instead of applying valid single-task fields", async () => {
+	const f = fixtureWithTasks([{ id: "t1", title: "Task one", status: "pending" }]);
+	try {
+		const h = createHarness(f.cwd, f.sessionEntries);
+		await h.handlers.get("session_start")?.({ reason: "start" }, h.ctx);
+		await h.handlers.get("before_agent_start")?.({ systemPrompt: "base", prompt: "go", systemPromptOptions: {} }, h.ctx);
+		const tool = h.tools.get("update_goal_task")!;
+		const result = await (tool.execute as any)("upd-invalid", {
+			task_id: "t1",
+			status: "start",
+			updates: [{ task_id: "", status: "start" }],
+		}, undefined, undefined, h.ctx);
+		assert.match(result.content?.[0]?.text ?? "", /updates must contain 1–100 valid task updates/);
+		assert.equal(activeGoal(f.cwd)?.currentTaskId, undefined, "invalid batch does not fall back to the single-task fields");
+		assert.equal(ledgerEvents(f.cwd).length, 0, "invalid batch writes no ledger events");
+	} finally {
+		f.cleanup();
+	}
+});
 
 test("set_goal_tasks sets a structural task tree (headless auto-confirm)", async () => {
 	const f = fixtureWithTasks([]);
@@ -254,7 +340,7 @@ test("update_goal_task(skipped) requires a reason and cascades to subtasks", asy
 		assert.equal(parsed?.taskList?.tasks[0]?.subtasks?.[0]?.status, "skipped", "subtask cascaded");
 		assert.ok(ledgerEvents(cwd).some((e) => e.type === "task_skipped"));
 	} finally {
-		try { rmSync(cwd, { recursive: true, force: true }); } catch {}
+		rmSync(cwd, { recursive: true, force: true });
 	}
 });
 
@@ -286,7 +372,7 @@ test("update_goal_task(pending) reopens a skipped task; completed tasks are immu
 		assert.equal(byId.get("sk")?.status, "pending", "skipped task reopened");
 		assert.equal(byId.get("done")?.status, "complete", "completed task immutable");
 	} finally {
-		try { rmSync(cwd, { recursive: true, force: true }); } catch {}
+		rmSync(cwd, { recursive: true, force: true });
 	}
 });
 
@@ -503,7 +589,7 @@ test("update_goal_task(pending) writes a task_reopened ledger event", async () =
 		assert.ok(reopened, "task_reopened ledger event must be written");
 		assert.equal(reopened!.taskId, "sk");
 	} finally {
-		try { rmSync(cwd, { recursive: true, force: true }); } catch {}
+		rmSync(cwd, { recursive: true, force: true });
 	}
 });
 

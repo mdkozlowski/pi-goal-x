@@ -389,38 +389,58 @@ pi.registerTool(defineTool({
 	},
 }));
 
-// ── update_goal_task: discriminated per-task status tool ───────────────────
+// ── update_goal_task: single-task and ordered-batch progress tool ──────────
 pi.registerTool(defineTool({
 	name: UPDATE_GOAL_TASK_TOOL_NAME,
 	label: "Update Goal Task",
-	description: "Update task progress without stopping the turn. Use ordered updates for an atomic batch, or task_id/status for one task. An invalid update rejects the whole batch.",
+	description: "Update task progress without stopping the turn. Use ordered updates for an atomic batch, or task_id/status for one task. A non-empty updates batch takes precedence when both forms are provided.",
 	promptSnippet: "Start, complete, skip, or reopen tasks; batch related progress.",
 	promptGuidelines: ["start requires pending and sets current task. complete requires evidence for contracted tasks and completed/skipped non-lightweight children. skipped requires a reason and explicit user direction or a hard contradiction; never skip to avoid work. pending reopens skipped tasks only; completed tasks are immutable. Completing/skipping the current task clears focus."],
 	parameters: Type.Object({
-		task_id: Type.Optional(Type.String({ description: "Single-task form; omit with updates." })),
+		task_id: Type.Optional(Type.String({ description: "Single-task form; used when no non-empty updates batch is provided." })),
 		status: Type.Optional(StringEnum(["start", "complete", "skipped", "pending"] as const)),
- updates: Type.Optional(Type.Array(Type.Object({task_id: Type.String(), status: StringEnum(["start", "complete", "skipped", "pending"] as const), evidence: Type.Optional(Type.String()), reason: Type.Optional(Type.String())}, {additionalProperties: false}), {minItems: 1, maxItems: 100, description: "Ordered atomic batch; omit all single-task fields."})),
+		updates: Type.Optional(Type.Array(Type.Object({
+			task_id: Type.String(),
+			status: StringEnum(["start", "complete", "skipped", "pending"] as const),
+			evidence: Type.Optional(Type.String()),
+			reason: Type.Optional(Type.String()),
+		}, { additionalProperties: false }), {
+			maxItems: 100,
+			description: "Ordered atomic batch; when non-empty it takes precedence over top-level single-task fields.",
+		})),
 		evidence: Type.Optional(Type.String({ description: "Completion evidence; max 200 chars." })),
 		reason: Type.Optional(Type.String({ description: "Required for skipped." })),
 	}, { additionalProperties: false }),
 	executionMode: "sequential",
 	async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
-  if (rawParams.updates !== undefined) {
-   const fail = (text: string) => ({content: [{type: "text" as const, text}], details: goalDetails(core.state.goal)});
-   if ([rawParams.task_id, rawParams.status, rawParams.evidence, rawParams.reason].some(v => v !== undefined)) return fail("Use either updates or single-task fields, never both.");
-   const updates = rawParams.updates;
-   if (!Array.isArray(updates) || updates.length < 1 || updates.length > 100 || updates.some(u => !u || typeof u.task_id !== "string" || !u.task_id.trim() || !["start", "complete", "skipped", "pending"].includes(u.status) || (u.evidence !== undefined && typeof u.evidence !== "string") || (u.reason !== undefined && typeof u.reason !== "string"))) return fail("updates must contain 1–100 valid task updates.");
-   core.reconcileFocusedGoalFromDisk(ctx);
-   if (loadGoalSettings(ctx.cwd).disableTasks) return fail("update_goal_task is disabled by settings (disableTasks: true).");
-   if (!core.state.goal) return fail("No goal is focused.");
-   if (core.state.goal.status !== "active") return fail(`update_goal_task applies only to an active goal (current status: ${core.state.goal.status}).`);
-   const result = core.goalService.updateTasks(ctx, updates.map(u => progressSpec(u, core, ctx)));
-   if (!result.ok) return fail(result.message);
-   core.updateUI(ctx);
-   return fail(`${updates.map(u => `${u.task_id} ${u.status}`).join("; ")}. ${buildTaskSummary(result.goal.taskList!)}.`);
-  }
-  if (!rawParams.task_id || !rawParams.status) return {content: [{type: "text", text: "Provide task_id and status, or an updates batch."}], details: goalDetails(core.state.goal)};
-  const params = rawParams as TaskProgressInput;
+		const respond = (text: string) => ({
+			content: [{ type: "text" as const, text }],
+			details: goalDetails(core.state.goal),
+		});
+		const updates = rawParams.updates;
+		if (Array.isArray(updates) && updates.length > 0) {
+			if (updates.length > 100 || updates.some(u => !u || typeof u.task_id !== "string" || !u.task_id.trim() || !["start", "complete", "skipped", "pending"].includes(u.status) || (u.evidence !== undefined && typeof u.evidence !== "string") || (u.reason !== undefined && typeof u.reason !== "string"))) {
+				return respond("updates must contain 1–100 valid task updates.");
+			}
+			core.reconcileFocusedGoalFromDisk(ctx);
+			if (loadGoalSettings(ctx.cwd).disableTasks) return respond("update_goal_task is disabled by settings (disableTasks: true).");
+			if (!core.state.goal) return respond("No goal is focused.");
+			if (core.state.goal.status !== "active") return respond(`update_goal_task applies only to an active goal (current status: ${core.state.goal.status}).`);
+			const result = core.goalService.updateTasks(ctx, updates.map(u => progressSpec(u, core, ctx)));
+			if (!result.ok) return respond(result.message);
+			core.updateUI(ctx);
+			return respond(`${updates.map(u => `${u.task_id} ${u.status}`).join("; ")}. ${buildTaskSummary(result.goal.taskList!)}.`);
+		}
+		if (updates !== undefined && !Array.isArray(updates)) {
+			return respond("updates must contain 1–100 valid task updates.");
+		}
+		if (Array.isArray(updates) && updates.length === 0 && (!rawParams.task_id || !rawParams.status)) {
+			return respond("updates must contain 1–100 valid task updates.");
+		}
+		if (!rawParams.task_id || !rawParams.status) {
+			return respond("Provide task_id and status, or an updates batch.");
+		}
+		const params = rawParams as TaskProgressInput;
 		core.reconcileFocusedGoalFromDisk(ctx);
 		if (loadGoalSettings(ctx.cwd).disableTasks) {
 			return {
@@ -589,7 +609,11 @@ pi.registerTool(defineTool({
 		};
 	},
 	renderCall(args, theme) {
-		return new Text(theme.fg("toolTitle", "update_goal_task ") + theme.fg("muted", `${args?.task_id ?? ""} ${args?.status ?? ""}`), 0, 0);
+		const updates = args?.updates;
+		const summary = Array.isArray(updates) && updates.length > 0
+			? `${updates.length} updates`
+			: `${args?.task_id ?? ""} ${args?.status ?? ""}`;
+		return new Text(theme.fg("toolTitle", "update_goal_task ") + theme.fg("muted", summary), 0, 0);
 	},
 	renderResult(result, _options, theme) {
 		return renderGoalResult(result, _options, theme);

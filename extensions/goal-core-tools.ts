@@ -64,6 +64,8 @@ pi.registerTool(defineTool({
 		if (core.state.goal) core.syncGoalPromptFromDisk(ctx);
 		const view = core.goalForDisplay() ?? core.state.goal;
 		const params = (_params ?? {}) as { verbose?: boolean; include_history?: boolean; section?: "summary" | GoalDetailSection; task_id?: string; cursor?: string };
+		const suppliedTaskId = params.task_id?.trim();
+		const taskId = suppliedTaskId && (params.section === "tasks" || suppliedTaskId !== "-") ? params.task_id : undefined;
 		// PR E profile: legacy-v1 keeps pre-optimization verbose-by-default output;
 		// compact-v2 (default) returns a concise state line set because the full
 		// policy already lives in the injected active-goal system block.
@@ -82,10 +84,10 @@ pi.registerTool(defineTool({
   if (params.section && params.section !== "summary") {
    if (!["objective", "tasks", "history"].includes(params.section)) return {content: [{type: "text", text: "Unknown goal section."}], details: goalDetails(view)};
    const history = params.section === "history" ? readGoalLedger(ctx) : undefined;
-   const page = goalDetailPage(view, {section: params.section, task_id: params.task_id, cursor: params.cursor}, history?.events, history?.revision);
+   const page = goalDetailPage(view, {section: params.section, task_id: taskId, cursor: params.cursor}, history?.events, history?.revision);
    return {content: [{type: "text", text: page.text}], details: {...goalDetails(view), ...(page.ok ? {page: {content: page.content, nextCursor: page.nextCursor, totalChars: page.totalChars}} : {})}};
   }
-  if (params.cursor || params.task_id) return {content: [{type: "text", text: "Use section=objective, tasks, or history for detail retrieval; task_id requires tasks."}], details: goalDetails(view)};
+  if (params.cursor || taskId) return {content: [{type: "text", text: "Use section=objective, tasks, or history for detail retrieval; task_id requires tasks."}], details: goalDetails(view)};
 		if (verbose && !params.section) {
 			const lines: string[] = [`Goal ${view.id}: ${statusLabel(view)}, ${view.sisyphus ? "sisyphus" : "regular"}`, schedulerSummary(view.scheduler, loadGoalSettings(ctx.cwd).maxAutonomousRuns, loadGoalSettings(ctx.cwd).showAutonomousRuns)];
 			lines.push(`Objective: ${view.objective}`, "");
@@ -528,7 +530,7 @@ pi.registerTool(defineTool({
 		// P1-3: persist any buffered in-turn mutations now so the auditor and
 		// status transitions observe the current task/state, not the stale disk.
 		core.flushGoalTransaction(ctx);
-		if (!!params.continuation === !!params.status || (params.continuation && (params.reason !== undefined || params.attempted_actions !== undefined || params.suggested_action !== undefined || params.completion_summary !== undefined))) {
+		if (Boolean(params.continuation) === Boolean(params.status) || (params.continuation && (params.reason !== undefined || params.attempted_actions !== undefined || params.suggested_action !== undefined || params.completion_summary !== undefined))) {
 			return { content: [{ type: "text", text: "Provide exactly one lifecycle status or continuation, without mixing their fields." }], details: {}, terminate: false };
 		}
 		if (params.continuation) return core.scheduler.declare(ctx, params.continuation as GoalContinuation);
